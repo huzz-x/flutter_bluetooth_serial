@@ -9,10 +9,13 @@ import java.util.Arrays;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.os.ParcelUuid;
+import android.util.Log;
 
 /// Universal Bluetooth serial connection class (for Java)
 public abstract class BluetoothConnection
 {
+    protected static final String TAG = "BluetoothConnection";
     protected static final UUID DEFAULT_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     protected BluetoothAdapter bluetoothAdapter;
@@ -45,7 +48,6 @@ public abstract class BluetoothConnection
         if (device == null) {
             throw new IOException("device not found");
         }
-
         BluetoothSocket socket = device.createRfcommSocketToServiceRecord(uuid); // @TODO . introduce ConnectionMethod
         if (socket == null) {
             throw new IOException("socket connection not established");
@@ -61,7 +63,27 @@ public abstract class BluetoothConnection
     }
     /// Connects to given device by hardware address (default UUID used)
     public void connect(String address) throws IOException {
-        connect(address, DEFAULT_UUID);
+        BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
+        BluetoothDevice device = btAdapter.getRemoteDevice(address);
+        ParcelUuid[] uuids = device.getUuids();
+        Log.d(TAG, String.format("All UUIDs from device %s [name: %s]: %s", address, device.getName(), Arrays.toString(uuids)));
+        IOException lastException = null;
+        for (ParcelUuid uuid : uuids) {
+            try {
+                Log.d(TAG, String.format("Trying to connect using UUID %s", uuid.getUuid()));
+
+                connect(address, uuid.getUuid());
+
+                Log.d(TAG, String.format("Connected successfully using UUID %s", uuid.getUuid()));
+                return;  // Exit the loop if connection is successful
+            } catch (IOException ioe) {
+                Log.e(TAG, String.format("Failed to connect using UUID %s", uuid.getUuid()), ioe);
+                lastException = ioe;
+            }
+        }
+        if (lastException != null) {
+            throw lastException;
+        }
     }
     
     /// Disconnects current session (ignore if not connected)
